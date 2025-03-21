@@ -34,10 +34,12 @@ The following functionalities are coming soon
 
 ## Usage
 
-
-Topology: top\_path
-Trajectories: [traj\_paths] 
-Reference structures: [ref\_paths]
+```{r,eval=False,tidy=False}
+topology = top_path
+trajectories = [traj_paths] 
+reference_structures = [ref_paths]
+reference_topology = ref_top_path
+```
 
 The RMSD can be calculated fairly easily as 
 
@@ -45,4 +47,31 @@ The RMSD can be calculated fairly easily as
 
 from post_processing.traj_classification import RMSDAnalysis
 
-rmsd_analyzer = RMSDAnalysis()
+rmsd_analyzer = RMSDAnalysis(trajectories, topology, reference_structures, reference_topology)
+
+trajs = rmsd_analyzer.load_trajectory()
+refs = rmsd_analyzer.load_reference()
+
+rmsds = rmsd_analyzer.get_similarity_metric()
+```
+
+This can be used to generate cut-offs for RMSD with respect to each structure.
+
+```python
+
+binned_rmsds = rmsd_analyzer.bin_frames(bins=50)
+
+cut_offs = rmsd_analyzer.get_cuts(binned_rmsds, max_components=len(reference_structures)+5, height=1)
+```
+
+Finally, to sort the frames based on the RMSDs and the cut-offs determined above,
+```python
+rmsds, cut_offs
+
+```
+
+Which generates the index of the reference structure if a reference structure was associated with the frame and -1 if it was not associated with any reference structure.
+
+
+
+
