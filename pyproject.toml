@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mc_trex"
+version = "0.1.0"
+authors = [ { name = "Nithin Komath Rajendran", email = "ge84fem@mytum.de" }, ]
+
+description = "Modules and methods to classify molecular dynamics trajectories based on reference structures."
+readme = "README.md"
+
+requires-python = ">=3.8"
+
+classifiers = [
+ 	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.8",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Operating System :: POSIX :: Linux",
+	"Topic :: Scientific/Engineering :: Chemistry",
+	"Topic :: Scientific/Engineering :: Physics",
+	]
+
+license = {file = "LICENSE"}
+
+dependencies = [
+	"numpy>=1.21",
+	"scipy>=1.7",
+	"MDAnalysis>=2.0",
+	"pandas>=1.3"
+]
+
+[project.scripts]
+"tcont_trajs" = "src.mc_trex.trajectory_manipulation.gen_Tcont_traj:main"
+"strip_res" = "src.mc_trex.trajectory_manipulation.gen_stripped_traj:main"
+
+[tool.setuptools.package-data]
+"mc_trex" = ["py.typed"]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "pytest"]
+
+[project.urls]
+Homepage = "https://github.com/nithinkr2000/mc_trex"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["mc_trex", 
+        "mc_trex.trajectory_manipulation", 
+	"mc_trex.post_processing", 
+	"mc_trex.trex_analyses"]
