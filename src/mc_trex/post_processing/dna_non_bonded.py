@@ -16,7 +16,6 @@ import warnings
 with warnings.catch_warnings():
     warnings.simplefilter(category=BiopythonDeprecationWarning, action="ignore")
     warnings.simplefilter(category=BiopythonWarning, action="ignore")
-
     from MDAnalysis import Universe  # type: ignore
     from MDAnalysis.topology.tables import TABLE_VDWRADII as vdwradii  # type: ignore
 
