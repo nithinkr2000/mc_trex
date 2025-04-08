@@ -427,6 +427,7 @@ class RMSDAnalysis(TrajectoryClassifier):
         self,
         traj: Universe,
         ref_trajs: List[Universe],
+        prefix: str = "rmsfit_",
         start: int = 0,
         stop: int = -1,
         step: int = 1,
@@ -447,7 +448,12 @@ class RMSDAnalysis(TrajectoryClassifier):
 
         ref_trajs : List[Universe]
             List of reference trajectories to be analyzed.
-
+        
+        prefix : str
+            Prefix for MDAnalysis.align.AlignTraj aligned trajectories.
+            The index of the reference structure will be added to the prefix
+            before passing to the module.    
+        
         start : int
             Starting frame of analysis
 
@@ -462,10 +468,7 @@ class RMSDAnalysis(TrajectoryClassifier):
 
         **kwargs
             Extra key word arguments for MDAnalysis.align.AlignTraj. Check
-            module docstring
-        **kwargs
-            Extra key word arguments for MDAnalysis.align.AlignTraj. Check
-            module docstring for all possible arguments.
+            module docstring.
 
 
         Returns
@@ -478,12 +481,15 @@ class RMSDAnalysis(TrajectoryClassifier):
         """
 
         all_rmsds = []
-
-        for ref_traj in ref_trajs:
-            aligner = align.AlignTraj(traj, ref_traj, **kwargs).run(
-                start=start, stop=stop, step=step, verbose=verbose
-            )
+        
+        for idx, ref_traj in enumerate(ref_trajs):
+            full_prefix = prefix + str(idx) + "_"
+            aligner = align.AlignTraj(
+                mobile=traj, reference=ref_traj, prefix=full_prefix, 
+                **kwargs
+            ).run(start=start, stop=stop, step=step, verbose=verbose)
             all_rmsds.append(aligner.rmsd)
+
 
         return all_rmsds
 
