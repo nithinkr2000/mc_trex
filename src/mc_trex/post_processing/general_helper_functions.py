@@ -105,9 +105,10 @@ def jack_knife(
 def blocked_bootstrap(
     data: NDArray[np.float64],
     block_size: int,
+    block_indices: List[int] | None = None,
     confidence: int = 5,
     n_bootstraps: int = 1000,
-    f: Callable = np.mean,
+    f: Callable = np.mean
 ) -> Tuple[NDArray[np.float64], List[float]]:
     """
     Perform bootstrap on blocked values.
@@ -121,6 +122,11 @@ def blocked_bootstrap(
     block_size : int
         Sizes of the blocks into which the data is divided.
 
+    block_indices: List[int] | None
+        The indices of block edges, including the beginning of the first block
+        (0) and the ending of the last block (len(data)). If this variable is 
+        passed, then block_size array is ignored.
+        
     confidence : int
         Confidence level to select values for.
 
@@ -130,7 +136,6 @@ def blocked_bootstrap(
 
     f : Callable
         Function to be applied to the resampled data.
-
 
     Returns
     -------
@@ -142,15 +147,20 @@ def blocked_bootstrap(
     """
 
     len_dat = len(data)
-    n_blocks = len_dat // block_size
-
-    blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+    if block_indices is None:
+        n_blocks = len_dat // block_size
+        blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+    else:
+        n_blocks = len(block_indices)-1 
+        blocks = np.array([data[idx1:idx2] for idx1, idx2 in zip(block_indices[:-1], block_indices[1:])], dtype=object)
+        
+    
 
     blocked_bootstrap = np.zeros(n_bootstraps)
 
     for resampling_idx in range(n_bootstraps):
         blocks_to_pick = np.random.randint(low=0, high=n_blocks, size=n_blocks)
-        resample = blocks[blocks_to_pick].flatten()
+        resample = np.concatenate(blocks[blocks_to_pick])
         blocked_bootstrap[resampling_idx] = f(resample)
 
     confidence_intervals = [
@@ -176,6 +186,7 @@ def tm_estimation(
     fit_T1: NDArray[np.float64],
     fit_T2: NDArray[np.float64],
     ref_name: str,
+    print_temp: bool
 ) -> Tuple[int, np.float64]:
     """
     Function to generate the melting temperature from the melting curve fits.
