@@ -1,4 +1,4 @@
-![alt text](https://github.com/nithinkr2000/mc_trex/assets/dev/logo2.jpg?raw=true)
+![alt text](https://github.com/nithinkr2000/mc_trex/dev/assets/logo2.jpg?raw=true)
 # mc_trex
 
 Helper functions for performing analyses on the temperature replica exchange simulations with AMBER. Generic helper functions for classification of trajectories. 
