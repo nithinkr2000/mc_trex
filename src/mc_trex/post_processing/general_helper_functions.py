@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from scipy.stats import bootstrap
-from typing import List, Tuple, Callable, NamedTuple
+from typing import List, Tuple, Callable
 
 
 def statistical_inefficiency(
@@ -109,7 +108,7 @@ def blocked_bootstrap(
     confidence: int = 5,
     n_bootstraps: int = 1000,
     f: Callable = np.mean,
-) -> List[NamedTuple, NDArray, float | NDArray]:
+) -> Tuple[NDArray[np.float64], List[float]]:
     """
     Perform bootstrap on blocked values.
 

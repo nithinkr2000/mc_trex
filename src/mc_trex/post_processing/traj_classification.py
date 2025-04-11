@@ -16,6 +16,7 @@ with warnings.catch_warnings():
     from MDAnalysis.analysis import align
     from MDAnalysisTests.datafiles import COORDINATES_TOPOLOGY, COORDINATES_XYZ
 
+from pathlib import Path
 from mc_trex.post_processing import native_contacts
 
 
@@ -427,6 +428,7 @@ class RMSDAnalysis(TrajectoryClassifier):
         self,
         traj: Universe,
         ref_trajs: List[Universe],
+        filenames: List[str] | None = None,
         prefix: str = "rmsfit_",
         start: int = 0,
         stop: int = -1,
@@ -449,6 +451,13 @@ class RMSDAnalysis(TrajectoryClassifier):
         ref_trajs : List[Universe]
             List of reference trajectories to be analyzed.
         
+        filenames : List[str] | None
+            List of filenames to which the aligned trajectories will be 
+            written. If this is not provided or if the length of this list is 
+            not equal to the length of the reference trajectory array, then it 
+            will be ignored and the files will be generated in the current
+            directory with prefix and reference structure index.
+
         prefix : str
             Prefix for MDAnalysis.align.AlignTraj aligned trajectories.
             The index of the reference structure will be added to the prefix
@@ -482,13 +491,17 @@ class RMSDAnalysis(TrajectoryClassifier):
 
         all_rmsds = []
         
-        for idx, ref_traj in enumerate(ref_trajs):
-            full_prefix = prefix + str(idx) + "_"
+        if ((filenames is None) or len(filenames)!=len(ref_trajs)):
+            in_traj_path = Path(traj.trajectory.filename)
+            filenames = [in_traj_path.parent.joinpath(prefix + str(idx) + "_" + in_traj_path.name) for idx in range(len(ref_trajs))]
+        
+
+        for (idx, ref_traj), filename in zip(enumerate(ref_trajs), filenames):
             aligner = align.AlignTraj(
-                mobile=traj, reference=ref_traj, prefix=full_prefix, 
+                mobile=traj, reference=ref_traj, filename=filename, 
                 **kwargs
             ).run(start=start, stop=stop, step=step, verbose=verbose)
-            all_rmsds.append(aligner.rmsd)
+            all_rmsds.append(aligner.results.rmsd)
 
 
         return all_rmsds
