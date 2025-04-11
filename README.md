@@ -1,4 +1,6 @@
-![alt text](./assets/logo2.jpg?raw=true)
+<p align="center">
+  <img src="./assets/logo2.jpg" width="500" height="500">
+</p>
 
 # mc_trex
 
