@@ -200,6 +200,12 @@ def tm_estimation(
         been passed. Default is "folded" which implies the natively folded
         structure of the biomolecule.
 
+    print_temp : bool
+        Set to true to print the melting temperature after estimation. 
+        If the estimated temperature is on of the extreme values i.e. it does
+        does not lie in the temperature range passed, then the message printed
+        cannot be suppressed.
+
     Results
     -------
 
@@ -251,11 +257,12 @@ def tm_estimation(
         )
 
     else:
-        print(
-            ref_name
-            + " melting temperature: {}K".format(
-                np.round(temperatures[min_diff_idx], decimals=2)
+        if print_temp:
+            print(
+                ref_name
+                + " melting temperature: {}K".format(
+                    np.round(temperatures[min_diff_idx], decimals=2)
+                )
             )
-        )
-
+        
     return min_diff_idx, np.round(temperatures[min_diff_idx], decimals=2)
