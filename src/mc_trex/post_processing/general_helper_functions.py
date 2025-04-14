@@ -104,7 +104,7 @@ def jack_knife(
 
 def blocked_bootstrap(
     data: NDArray[np.float64],
-    block_size: int,
+    block_size: int = 1,
     block_indices: List[int] | None = None,
     confidence: int = 5,
     n_bootstraps: int = 1000,
