@@ -312,23 +312,23 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
             )
 
             # Find the peaks
-            peak_idcs = find_peaks(profile, height=height)
+            peak_idcs = find_peaks(profile, height=height)[0]
 
             # Select the minima after each identified peak
             cuts = (
-                [
-                    minima_measures[minima_measures < newbins[idx]][0]
-                    if np.any(minima_measures > newbins[idx])
-                    else None
-                    for idx in peak_idcs[0]
-                ]
+                np.unique([
+                    minima_measures[minima_measures < newbins[idx]][-1]
+                    if np.any(np.less(minima_measures, newbins[idx]))
+                    else -1
+                    for idx in peak_idcs
+                ])
                 if self.get_which
-                else [
+                else np.unique([
                     minima_measures[minima_measures > newbins[idx]][0]
-                    if np.any(minima_measures > newbins[idx])
-                    else None
-                    for idx in peak_idcs[0]
-                ]
+                    if np.any(np.greater(minima_measures, newbins[idx]))
+                    else newbins[-1]+1
+                    for idx in peak_idcs
+                ])
             )
 
             all_cuts.append(cuts)
@@ -428,6 +428,7 @@ class RMSDAnalysis(TrajectoryClassifier):
         self,
         traj: Universe,
         ref_trajs: List[Universe],
+        frames: List[int] | NDArray[int] | None = None,
         filenames: List[str] | None = None,
         prefix: str = "rmsfit_",
         start: int = 0,
@@ -450,19 +451,23 @@ class RMSDAnalysis(TrajectoryClassifier):
 
         ref_trajs : List[Universe]
             List of reference trajectories to be analyzed.
-        
+
         filenames : List[str] | None
-            List of filenames to which the aligned trajectories will be 
-            written. If this is not provided or if the length of this list is 
-            not equal to the length of the reference trajectory array, then it 
+            List of filenames to which the aligned trajectories will be
+            written. If this is not provided or if the length of this list is
+            not equal to the length of the reference trajectory array, then it
             will be ignored and the files will be generated in the current
             directory with prefix and reference structure index.
+
+        frames: List[int] | NDArray[int] | None,
+            To be used in place of start, stop and step. List of frames or
+            frame slices to be used in the analysis.
 
         prefix : str
             Prefix for MDAnalysis.align.AlignTraj aligned trajectories.
             The index of the reference structure will be added to the prefix
-            before passing to the module.    
-        
+            before passing to the module.
+
         start : int
             Starting frame of analysis
 
@@ -490,19 +495,32 @@ class RMSDAnalysis(TrajectoryClassifier):
         """
 
         all_rmsds = []
-        
-        if ((filenames is None) or len(filenames)!=len(ref_trajs)):
+
+        if (filenames is None) or len(filenames) != len(ref_trajs):
             in_traj_path = Path(traj.trajectory.filename)
-            filenames = [in_traj_path.parent.joinpath(prefix + str(idx) + "_" + in_traj_path.name) for idx in range(len(ref_trajs))]
-        
+            filenames = [
+                in_traj_path.parent.joinpath(
+                    prefix + str(idx) + "_" + in_traj_path.name
+                )
+                for idx in range(len(ref_trajs))
+            ]
+
+        if (frames and
+            all([int(frameidx)==frameidx for frameidx in frames]) and
+            np.all(np.logical_and(np.greater_equal(frames, 0), 
+                np.less(frames, traj.trajectory.n_frames)))):
+            start = None
+            stop = None
+            step = None
+
+        else:
+            frames = None
 
         for (idx, ref_traj), filename in zip(enumerate(ref_trajs), filenames):
             aligner = align.AlignTraj(
-                mobile=traj, reference=ref_traj, filename=filename, 
-                **kwargs
-            ).run(start=start, stop=stop, step=step, verbose=verbose)
+                mobile=traj, reference=ref_traj, filename=filename, **kwargs
+            ).run(start=start, stop=stop, step=step, frames=frames, verbose=verbose)
             all_rmsds.append(aligner.results.rmsd)
-
 
         return all_rmsds
 
@@ -521,10 +539,12 @@ class NativeContactAnalysis(TrajectoryClassifier):
         self,
         traj: Universe,
         ref_trajs: List[Universe],
+        frames: List[int] | NDArray[int] | None = None,
         start: int = 0,
         stop: int = -1,
         step: int = 1,
         verbose: bool = False,
+        post_process: bool = True,
         **kwargs,
     ) -> List[NDArray[np.float64]]:
         """
@@ -542,6 +562,10 @@ class NativeContactAnalysis(TrajectoryClassifier):
         ref_trajs : List[Universe]
             List of reference trajectories to be analyzed.
 
+        frames: List[int] | NDArray[int] | None,
+            To be used in place of start, stop and step. List of frames or
+            frame slices to be used in the analysis.
+
         start : int
             Starting frame of analysis
 
@@ -553,7 +577,12 @@ class NativeContactAnalysis(TrajectoryClassifier):
 
         verbose : bool
             Turn on verbosity.
-
+    
+        post_process : bool
+            Set to True to perform post-processing (extract timeseries)
+            before returning. If False, the contacts.Contacts objects of
+            MDAnalysis are returned.
+        
         **kwargs
             Extra key word arguments for native_contacts.get_frac_natcons.
             Check module docstring for all possible arguments.
@@ -572,14 +601,17 @@ class NativeContactAnalysis(TrajectoryClassifier):
             temp_natcons = native_contacts.get_frac_natcons(
                 sims=[traj],
                 ref=ref_traj,
+                frames=frames,
                 start=start,
                 stop=stop,
                 step=step,
                 verbose=verbose,
                 **kwargs,
             )
+            
+
             for natcons in temp_natcons:
-                all_natcons.append(native_contacts.post_process_natcons(natcons))
+                all_natcons.append(native_contacts.post_process_natcons(natcons) if post_process else natcons)
 
         return all_natcons
 
