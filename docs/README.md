@@ -89,7 +89,7 @@ rmsds, cut_offs
 
 Which generates the index of the reference structure if a reference structure was associated with the frame and -1 if it was not associated with any reference structure.
 
-## Author
+## About me
 I am Nithin and these methods and tools were the most commonly used parts of the code I wrote for my master's thesis in molecular dynamics simulations.  
 
 

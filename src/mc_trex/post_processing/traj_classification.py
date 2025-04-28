@@ -14,11 +14,12 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from MDAnalysis import Universe
     from MDAnalysis.analysis import align
-    from MDAnalysisTests.datafiles import COORDINATES_TOPOLOGY, COORDINATES_XYZ
 
 from pathlib import Path
 from mc_trex.post_processing import native_contacts
 
+from numba import int32, float64
+from numba.experimental import jitclass
 
 class Method(Enum):
     """Enumeration of available methods in trajectory classification."""
@@ -47,7 +48,12 @@ class TrajectoryLoader:
         Paths to the reference structures with respect to which the trajectory
         will be sorted.
 
+    traj : MDAnalysis.Universe | None
+        Trajectory loaded from `traj_loc`.
 
+    refs : List[MDAnalysis.Universe] | None
+        List of reference structures loaded from `ref_loc`.
+    
     Methods
     -------
 
@@ -61,17 +67,19 @@ class TrajectoryLoader:
     def __init__(
         self,
         traj_loc: List[str] | None = None,
-        top: str = COORDINATES_TOPOLOGY,
+        top: str | None = None,
         ref_loc: List[str] | None = None,
         top_ref: str | None = None,
     ):
         """Initialize trajectory loader."""
 
-        self.traj_loc = traj_loc if traj_loc is not None else [COORDINATES_XYZ]
+        self.traj_loc = traj_loc
         self.top = top
-        self.ref_loc = ref_loc if ref_loc is not None else [COORDINATES_XYZ]
+        self.ref_loc = ref_loc
         self.top_ref = top_ref if top_ref is not None else top
-
+        self.traj = None
+        self.refs = None
+        
     def load_trajectory(self, **kwargs) -> Universe:
         """
         Wrapper for loading trajectory.
@@ -91,8 +99,13 @@ class TrajectoryLoader:
 
         """
 
-        return Universe(self.top, self.traj_loc, **kwargs)
+        if self.traj_loc is None: raise ValueError("No trajectory provided!")
+        if self.top is None: raise ValueError("No topology provided!")
 
+        self.traj = Universe(self.top, self.traj_loc, **kwargs)
+        
+        return self.traj
+        
     def load_reference(self, **kwargs) -> List[Universe]:
         """
         Wrapper for loading reference structures.
@@ -111,8 +124,12 @@ class TrajectoryLoader:
             List of Universe class instances containing reference trajectories.
         """
 
-        return [Universe(self.top_ref, ref, **kwargs) for ref in self.ref_loc]
-
+        if self.ref_loc is None: raise("No reference structures provided!")
+        if self.top_ref is None: raise("No topology provided!")
+        
+        self.refs = [Universe(self.top_ref, ref, **kwargs) for ref in self.ref_loc]
+        
+        return self.refss
 
 class TrajectoryClassifier(TrajectoryLoader, ABC):
     """
@@ -140,7 +157,7 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
         Determine cut-off using Gaussian mixture models and sort through frames
         using these cut-offs.
     """
-
+    
     @property
     @abstractmethod
     def get_which(self):
@@ -150,8 +167,6 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
     @abstractmethod
     def get_similarity_metric(
         self,
-        traj: Any,
-        ref_trajs: List[Any],
         start: int = 0,
         stop: int = -1,
         step: int = 1,
@@ -426,8 +441,6 @@ class RMSDAnalysis(TrajectoryClassifier):
 
     def get_similarity_metric(
         self,
-        traj: Universe,
-        ref_trajs: List[Universe],
         frames: List[int] | NDArray[int] | None = None,
         filenames: List[str] | None = None,
         prefix: str = "rmsfit_",
@@ -445,12 +458,6 @@ class RMSDAnalysis(TrajectoryClassifier):
 
         Parameters
         ----------
-
-        traj : Universe
-            Trajectory to be analyzed.
-
-        ref_trajs : List[Universe]
-            List of reference trajectories to be analyzed.
 
         filenames : List[str] | None
             List of filenames to which the aligned trajectories will be
@@ -494,21 +501,24 @@ class RMSDAnalysis(TrajectoryClassifier):
             reference.
         """
 
+        if self.traj is None: raise("No trajectory provided!")
+        if self.refs is None: raise("No reference structures provided")
+        
         all_rmsds = []
 
-        if (filenames is None) or len(filenames) != len(ref_trajs):
-            in_traj_path = Path(traj.trajectory.filename)
+        if (filenames is None) or len(filenames) != len(self.refs):
+            in_traj_path = Path(self.traj.trajectory.filename)
             filenames = [
                 in_traj_path.parent.joinpath(
                     prefix + str(idx) + "_" + in_traj_path.name
                 )
-                for idx in range(len(ref_trajs))
+                for idx in range(len(self.refs))
             ]
 
         if (frames and
             all([int(frameidx)==frameidx for frameidx in frames]) and
             np.all(np.logical_and(np.greater_equal(frames, 0), 
-                np.less(frames, traj.trajectory.n_frames)))):
+                np.less(frames, self.traj.trajectory.n_frames)))):
             start = None
             stop = None
             step = None
@@ -516,9 +526,9 @@ class RMSDAnalysis(TrajectoryClassifier):
         else:
             frames = None
 
-        for (idx, ref_traj), filename in zip(enumerate(ref_trajs), filenames):
+        for (idx, ref_traj), filename in zip(enumerate(self.refs), filenames):
             aligner = align.AlignTraj(
-                mobile=traj, reference=ref_traj, filename=filename, **kwargs
+                mobile=self.traj, reference=self.ref_traj, filename=filename, **kwargs
             ).run(start=start, stop=stop, step=step, frames=frames, verbose=verbose)
             all_rmsds.append(aligner.results.rmsd)
 
@@ -537,8 +547,6 @@ class NativeContactAnalysis(TrajectoryClassifier):
 
     def get_similarity_metric(
         self,
-        traj: Universe,
-        ref_trajs: List[Universe],
         frames: List[int] | NDArray[int] | None = None,
         start: int = 0,
         stop: int = -1,
@@ -555,12 +563,6 @@ class NativeContactAnalysis(TrajectoryClassifier):
 
         Parameters
         ----------
-
-        traj : Universe
-            Trajectory to be analyzed.
-
-        ref_trajs : List[Universe]
-            List of reference trajectories to be analyzed.
 
         frames: List[int] | NDArray[int] | None,
             To be used in place of start, stop and step. List of frames or
@@ -597,9 +599,9 @@ class NativeContactAnalysis(TrajectoryClassifier):
         """
 
         all_natcons = []
-        for ref_traj in ref_trajs:
+        for ref_traj in self.refs:
             temp_natcons = native_contacts.get_frac_natcons(
-                sims=[traj],
+                sims=[self.traj],
                 ref=ref_traj,
                 frames=frames,
                 start=start,
