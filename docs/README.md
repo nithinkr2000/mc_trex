@@ -17,7 +17,7 @@ python3 -m pip install .
 
 ## Highlights
 
-Currently, the following can be performed by the package
+Currently, the following analyses and tasks can be performed by the package
 
 For AMBER replica exchange trajectories
 1. Generate thermodynamically continuous trajectories from structurally continuous trajectories (requires CPPTRAJ)
@@ -35,6 +35,17 @@ The following functionalities are coming soon
 2. Module to perform Parallel Tempering + Simulated Annealing with AMBER.
 3. Module to analyze PT + SA simulations.
 
+## Description
+
+This is a compilation of helper functions used in the development of heuristics for the use of enhanced sampling (temperature replica exchange - TREx) 
+for determining the melting temperature of small biomolecules. There are also some modules (early stages of implementation) meant for performing combined TREx + simulated annealing 
+simulations.
+
+The methods in the repository are mostly wrapped around MDAnalysis tools. There are also some subprocess calls to CPPTRAJ. Since simulations were performed in AMBER during the project, the 
+functions are in general specific to AMBER.
+
+However, functions to perform RMSD or contact analyses are more general. There are repositories and tools which implement the functionalities in this repository more efficiently
+but this is a convenient packaging of these available tools, sacrificing simplicity of usage for the generality that the complete packages provide.
 
 ## Usage
 
@@ -78,6 +89,7 @@ rmsds, cut_offs
 
 Which generates the index of the reference structure if a reference structure was associated with the frame and -1 if it was not associated with any reference structure.
 
-
+## Author
+I am Nithin and these methods and tools were the most commonly used parts of the code I wrote for my master's thesis in molecular dynamics simulations.  
 
 
