@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../assets/logo2_nobg.png" width="500" height="500">
+  <img src="../assets/logo1_nobg.png" width="500" height="500">
 </p>
 
 # mc_trex
