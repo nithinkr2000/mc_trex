@@ -38,7 +38,7 @@ The following functionalities are coming soon
 
 ## Usage
 
-Sample notebooks which contain examples of reference-structure identification, melting temperature calculation and so on can be found [here](mc_trex/docs/examples)
+Sample notebooks which contain examples of reference-structure identification, melting temperature calculation and so on can be found [here](examples)
 
 ```{r,eval=False,tidy=False}
 topology = top_path
