@@ -124,8 +124,8 @@ class TrajectoryLoader:
             List of Universe class instances containing reference trajectories.
         """
 
-        if self.ref_loc is None: raise("No reference structures provided!")
-        if self.top_ref is None: raise("No topology provided!")
+        if self.ref_loc is None: raise ValeuError("No reference structures provided!")
+        if self.top_ref is None: raise ValeuError("No topology provided!")
         
         self.refs = [Universe(self.top_ref, ref, **kwargs) for ref in self.ref_loc]
         
@@ -501,8 +501,8 @@ class RMSDAnalysis(TrajectoryClassifier):
             reference.
         """
 
-        if self.traj is None: raise("No trajectory provided!")
-        if self.refs is None: raise("No reference structures provided")
+        if self.traj is None: raise ValueError("No trajectory provided!")
+        if self.refs is None: raise ValueError("No reference structures provided")
         
         all_rmsds = []
 
@@ -527,9 +527,17 @@ class RMSDAnalysis(TrajectoryClassifier):
             frames = None
 
         for (idx, ref_traj), filename in zip(enumerate(self.refs), filenames):
+            
             aligner = align.AlignTraj(
-                mobile=self.traj, reference=self.ref_traj, filename=filename, **kwargs
-            ).run(start=start, stop=stop, step=step, frames=frames, verbose=verbose)
+                            mobile=self.traj, 
+                            reference=ref_traj, 
+                            filename=filename, 
+                            **kwargs
+                            ).run(start=start, 
+                                  stop=stop, 
+                                  step=step, 
+                                  frames=frames, 
+                                  verbose=verbose)
             all_rmsds.append(aligner.results.rmsd)
 
         return all_rmsds
