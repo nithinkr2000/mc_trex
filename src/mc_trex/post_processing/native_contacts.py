@@ -125,12 +125,12 @@ def get_frac_natcons(
                 ref.select_atoms(
                     "resid "
                     + str(id1)
-                    + " and " + atom_selection
+                    + atom_selection
                 ),
                 ref.select_atoms(
                     "resid "
                     + str(id2)
-                    + " and " + atom_selection
+                    + atom_selection
                 ),
             )
             idcs = np.argwhere(temp < cut_off).tolist()
