@@ -312,8 +312,9 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
             grad_pdf = np.gradient(pdf, newbins)
 
             # Find minima by checking where the gradient goes from 0/negative to positive
-            min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
-
+            # min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
+            min_bin_in = find_peaks(-profile)
+             
             # Get these points on the measure axis
             minima_measures = newbins[min_bin_in]
 
