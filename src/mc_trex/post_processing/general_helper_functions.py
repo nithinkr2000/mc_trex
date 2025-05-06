@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 
 def statistical_inefficiency(
@@ -17,7 +17,7 @@ def statistical_inefficiency(
         Contains the data to be analyzed in a linear array.
 
     block_sizes : None | NDArray[np.int64]
-        Size of the blocks into which the data is divided. The largest value
+        Sizes of the blocks into which the data is divided. The largest value
         must be less than or equal to half the length of the data array.
         block_size <= len(data) // 2
 
@@ -56,6 +56,121 @@ def statistical_inefficiency(
     return statistical_inefficiency
 
 
+def jack_knife(
+    data: NDArray[np.float64], n_blocks: int, f: Callable = np.mean
+) -> NDArray[np.float64]:
+    """
+    Jack-knife method for error estimation.
+
+    Parameters
+    ----------
+
+    data : NDArray[np.float64]
+        Contains the data to be analyzed in a linear array.
+
+    n_blocks : int
+        Number of blocks to be used in the calculation of the error.
+
+    f : Callable
+        Function to be applied to the dataset before application of the
+        jack-knife method.
+
+    Returns
+    -------
+
+    del_rho : float
+        The error estimate from jack-knife.
+
+    """
+    len_dat = len(data)
+    block_size = len_dat // n_blocks
+
+    blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+
+    # Dataset without one block
+    blocks_m = np.zeros([n_blocks, (n_blocks - 1) * block_size])
+    for idx in range(n_blocks):
+        blocks_m[idx] = np.append(blocks[:idx].flatten(), blocks[idx + 1 :].flatten())
+
+    rho_m_bar = np.apply_along_axis(func1d=f, axis=1, arr=blocks_m)
+    rho_bar = f(data[: n_blocks * block_size])
+
+    del_rho = np.sqrt((n_blocks - 1) / n_blocks) * np.sqrt(
+        np.sum(np.power(np.subtract(rho_m_bar, rho_bar), 2))
+    )
+
+    return del_rho
+
+
+def blocked_bootstrap(
+    data: NDArray[np.float64],
+    block_size: int = 1,
+    block_indices: List[int] | None = None,
+    confidence: int = 5,
+    n_bootstraps: int = 1000,
+    f: Callable = np.mean
+) -> Tuple[NDArray[np.float64], List[float]]:
+    """
+    Perform bootstrap on blocked values.
+
+    Parameters
+    ----------
+
+    data : NDArray[np.float64]
+        Contains the data to be analyzed in a linear array.
+
+    block_size : int
+        Sizes of the blocks into which the data is divided.
+
+    block_indices: List[int] | None
+        The indices of block edges, including the beginning of the first block
+        (0) and the ending of the last block (len(data)). If this variable is 
+        passed, then block_size array is ignored.
+        
+    confidence : int
+        Confidence level to select values for.
+
+    n_bootstraps : int
+        Number of times values should be resampled from the distribution with
+        replacement.
+
+    f : Callable
+        Function to be applied to the resampled data.
+
+    Returns
+    -------
+
+    Tuple[NDArray[np.float64], List[float]]
+        The blocked_bootstrap values in an array after the function f has been
+        applied to them and the confidence interval for the passed confidence
+        level.
+    """
+
+    len_dat = len(data)
+    if block_indices is None:
+        n_blocks = len_dat // block_size
+        blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+    else:
+        n_blocks = len(block_indices)-1 
+        blocks = np.array([data[idx1:idx2] for idx1, idx2 in zip(block_indices[:-1], block_indices[1:])], dtype=object)
+        
+    
+
+    blocked_bootstrap = np.zeros(n_bootstraps)
+
+    for resampling_idx in range(n_bootstraps):
+        blocks_to_pick = np.random.randint(low=0, high=n_blocks, size=n_blocks)
+        resample = np.concatenate(blocks[blocks_to_pick])
+        blocked_bootstrap[resampling_idx] = f(resample)
+
+    confidence_intervals = [
+        np.percentile(blocked_bootstrap, confidence / 2),
+        np.percentile(blocked_bootstrap, 100 - (confidence / 2)),
+    ]
+
+    return blocked_bootstrap, confidence_intervals
+
+
 def running_average(
     data: NDArray[np.float64] | List[float], window: int = 1
 ) -> NDArray[np.float64]:
@@ -71,6 +186,7 @@ def tm_estimation(
     fit_T1: NDArray[np.float64],
     fit_T2: NDArray[np.float64],
     ref_name: str,
+    print_temp: bool
 ) -> Tuple[int, np.float64]:
     """
     Function to generate the melting temperature from the melting curve fits.
@@ -94,6 +210,12 @@ def tm_estimation(
         Name of the structure/configuration for which the melting curve has
         been passed. Default is "folded" which implies the natively folded
         structure of the biomolecule.
+
+    print_temp : bool
+        Set to true to print the melting temperature after estimation. 
+        If the estimated temperature is on of the extreme values i.e. it does
+        does not lie in the temperature range passed, then the message printed
+        cannot be suppressed.
 
     Results
     -------
@@ -146,14 +268,12 @@ def tm_estimation(
         )
 
     else:
-        print(
-            ref_name
-            + " melting temperature: {}K".format(
-                np.round(temperatures[min_diff_idx], decimals=2)
+        if print_temp:
+            print(
+                ref_name
+                + " melting temperature: {}K".format(
+                    np.round(temperatures[min_diff_idx], decimals=2)
+                )
             )
-        )
-
+        
     return min_diff_idx, np.round(temperatures[min_diff_idx], decimals=2)
-
-
-# def
