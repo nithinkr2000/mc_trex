@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 from typing import List, Tuple, Callable
-
+from numba import jit
 
 def statistical_inefficiency(
     data: NDArray[np.float64], block_sizes: None | NDArray[np.int64]
@@ -55,7 +55,7 @@ def statistical_inefficiency(
 
     return statistical_inefficiency
 
-
+@jit(forceobj=True, looplift=True)
 def jack_knife(
     data: NDArray[np.float64], n_blocks: int, f: Callable = np.mean
 ) -> NDArray[np.float64]:
