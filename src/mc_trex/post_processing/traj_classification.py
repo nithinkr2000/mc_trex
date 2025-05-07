@@ -311,13 +311,6 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
             # Find gradient of the PDF
             grad_pdf = np.gradient(pdf, newbins)
 
-            # Find minima by checking where the gradient goes from 0/negative to positive
-            # min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
-            min_bin_in = find_peaks(-profile)
-             
-            # Get these points on the measure axis
-            minima_measures = newbins[min_bin_in]
-
             ## Determine peaks to select minima immediately after or immediately before them
 
             # Calculate the envelope for the histogram to find the peaks
@@ -326,7 +319,14 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
             profile = (
                 np.sum(pdf_per_component, axis=1) * pdf * np.sum(bin_pops) * bin_width
             )
-
+            
+            # Find minima by checking where the gradient goes from 0/negative to positive
+            # min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
+            min_bin_in = find_peaks(-profile)[0]
+             
+            # Get these points on the measure axis
+            minima_measures = newbins[min_bin_in]
+            
             # Find the peaks
             peak_idcs = find_peaks(profile, height=height)[0]
 

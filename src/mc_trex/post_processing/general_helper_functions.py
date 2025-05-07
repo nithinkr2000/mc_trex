@@ -277,3 +277,47 @@ def tm_estimation(
             )
         
     return min_diff_idx, np.round(temperatures[min_diff_idx], decimals=2)
+
+
+
+
+def autocorrelation(data: NDArray[np.float64], lag: int | None = None) -> NDArray[np.float64] | float:
+    """
+    Function to calculate the autocorrelation of a timeseries. If the lag is
+    passed, the the autocorrelation for a specific lag is returned. If not,
+    then the autocorrelation for the all possible values of lag is returned.
+    
+    Parameters
+    ----------
+    
+    data : NDArray[np.float64]
+        The data for which the autocorrelation is to be calculated. Expected
+        shape is a linear array containing timeseries data.
+    
+    lag : int | None
+        The lag for which the autocorrelation is to be calculated. Provide to 
+        return a single value.  
+
+    Returns
+    -------
+    NDArray[np.float64] | float
+        Returns the autocorrelation for all lag times or for a single value of
+        the lag depending on whether the argument is provided.
+
+    """
+
+    x_ = np.subtract(x, np.mean(x))
+    variance = np.var(x)
+
+    ac = np.correlate(x_, x_, mode="full")
+    ac = ac[len(ac) // 2:] / variance
+    
+
+    if (lag is not None) and (lag < len(ac)):
+        return ac[lag]
+
+    else:
+        return ac
+
+
+
