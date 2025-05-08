@@ -281,7 +281,7 @@ def tm_estimation(
 
 
 
-def autocorrelation(data: NDArray[np.float64], lag: int | None = None) -> NDArray[np.float64] | float:
+def autocorrelation(x: NDArray[np.float64], lag: int | None = None) -> NDArray[np.float64] | float:
     """
     Function to calculate the autocorrelation of a timeseries. If the lag is
     passed, the the autocorrelation for a specific lag is returned. If not,
@@ -290,7 +290,7 @@ def autocorrelation(data: NDArray[np.float64], lag: int | None = None) -> NDArra
     Parameters
     ----------
     
-    data : NDArray[np.float64]
+    x : NDArray[np.float64]
         The data for which the autocorrelation is to be calculated. Expected
         shape is a linear array containing timeseries data.
     
