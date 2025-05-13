@@ -27,7 +27,7 @@ def get_frac_natcons(
     ref: Universe = None,
     cut_off: float = 3.0,
     ids: List[int] | None = None,
-    atom_selection: str = "nucleic",
+    atom_selection: str = " nucleic",
     nonoh: bool = True,
     skip_neighs: int = 1,
     method: Literal["soft", "hard"] = "soft",

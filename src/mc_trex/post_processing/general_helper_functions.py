@@ -55,7 +55,7 @@ def statistical_inefficiency(
 
     return statistical_inefficiency
 
-@jit(forceobj=True, looplift=True)
+@jit(nopython=True)
 def jack_knife(
     data: NDArray[np.float64], n_blocks: int, f: Callable = np.mean
 ) -> NDArray[np.float64]:
@@ -82,23 +82,31 @@ def jack_knife(
         The error estimate from jack-knife.
 
     """
+    
     len_dat = len(data)
     block_size = len_dat // n_blocks
 
-    blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+    # Exclude any elements that cannot form a full block
+    clipped_data = data[:n_blocks * block_size]
+    rho_bar = f(clipped_data)
 
-    # Dataset without one block
-    blocks_m = np.zeros([n_blocks, (n_blocks - 1) * block_size])
-    for idx in range(n_blocks):
-        blocks_m[idx] = np.append(blocks[:idx].flatten(), blocks[idx + 1 :].flatten())
+    # To hold the sum under root in jack-knife error
+    sum_diff_sq = 0
+    
+    for i in range(n_blocks):
 
-    rho_m_bar = np.apply_along_axis(func1d=f, axis=1, arr=blocks_m)
-    rho_bar = f(data[: n_blocks * block_size])
+        # Create the data set excluding the block
+        block_m = np.append(clipped_data[:i*block_size], 
+                clipped_data[(i+1)*block_size:])
 
-    del_rho = np.sqrt((n_blocks - 1) / n_blocks) * np.sqrt(
-        np.sum(np.power(np.subtract(rho_m_bar, rho_bar), 2))
-    )
+        # Apply function to the data set excluding the block
+        rho_m_bar = f(block_m)
+        
+        sum_diff_sq += np.power(rho_m_bar - rho_bar, 2)
 
+    # Apply the full formula of jack-knife error
+    del_rho = np.sqrt((n_blocks - 1)/n_blocks) *np.sqrt(sum_diff_sq)
+    
     return del_rho
 
 
