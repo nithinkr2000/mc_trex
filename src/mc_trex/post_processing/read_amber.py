@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Any, List, Literal, Tuple, Dict
+from typing import List, Dict
 from numpy.typing import NDArray
 
 import pandas as pd
@@ -208,7 +208,7 @@ class ReadAMBER:
 
     def read_AMBER_out(self) -> None:
         """Read the AMBER out files given the file paths."""
-        
+
         try:
             all_df_out = []
             for outfile in self.outfiles:
@@ -298,7 +298,7 @@ class ReadAMBER:
         Returns the total energy, kinetic energy and potential energy
         in that order as a pandas dataframe
         """
-        
+
         assert self.df_out is not None, "No out files processed."
 
         return self.df_out
