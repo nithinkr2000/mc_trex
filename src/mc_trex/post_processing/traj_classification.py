@@ -565,16 +565,21 @@ class RMSDAnalysis(TrajectoryClassifier):
                 all_rmsds.append(aligner.results.rmsd)
 
         elif method.casefold() == "no_align":
-            selection = self.traj.select_atoms(select)
+            traj_select = self.traj.select_atoms(select)
 
-            select_coords = self.traj.trajectory.timeseries(atom_group=selection)
+            traj_coords = self.traj.trajectory.timeseries(atomgroup=traj_select)
 
             for idx, ref_traj in enumerate(self.refs):
                 ref_select = ref_traj.select_atoms(select)
-                ref_coords = ref_traj.trajectory.timeseries(atom_group=ref_select)
+                ref_coords = ref_traj.trajectory.timeseries(atomgroup=ref_select)
+
+                # Assuming there is an extra dimension in the reference
+                # coordinates
+                ref_coords = ref_coords.reshape(traj_coords.shape[1:])
+
                 ref_rmsds = [
                     rms.rmsd(frame, ref_coords, superposition=True)
-                    for frame in select_coords
+                    for frame in traj_coords
                 ]
 
                 all_rmsds.append(ref_rmsds)
