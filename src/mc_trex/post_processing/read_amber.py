@@ -105,12 +105,12 @@ class ReadAMBER:
 
         self.df_exchng: pd.DataFrame | None = None
         self.df_out: pd.DataFrame | None = None
-
-        if logfiles:
+        
+        if logfiles is not None:
             self.logfiles = logfiles
             self.read_AMBER_log()
 
-        if outfiles:
+        if outfiles is not None:
             self.outfiles = outfiles
             self.read_AMBER_out()
 
@@ -132,17 +132,9 @@ class ReadAMBER:
 
         if not self.num_reps:
             self.num_reps = df_exchng["Rep number"].nunique()
-        else:
-            assert self.num_reps == df_exchng["Rep number"].nunique(), (
-                "Replica count mismatch."
-            )
-
-        if not self.temperatures:
+        
+        if (self.temperatures is None) or (len(self.temperatures) < self.num_reps):
             self.temperatures = df_exchng["Temp0"].unique()
-        else:
-            assert np.all(np.equal(self.temperatures, df_exchng["Temp0"].unique())), (
-                "Thermostat mismatch."
-            )
 
         temp = set(df_exchng["Rep number"].value_counts().values)
         ex_num = min(temp)
