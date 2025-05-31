@@ -571,7 +571,7 @@ class RMSDAnalysis(TrajectoryClassifier):
 
             for idx, ref_traj in enumerate(self.refs):
                 ref_select = ref_traj.select_atoms(select)
-                ref_coords = ref_traj.trajectory.timeseries(atomgroup=ref_select)
+                ref_coords = ref_traj.trajectory.timeseries(ref_select)
 
                 # Assuming there is an extra dimension in the reference
                 # coordinates
