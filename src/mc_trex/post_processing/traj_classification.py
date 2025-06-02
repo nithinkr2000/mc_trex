@@ -576,11 +576,17 @@ class RMSDAnalysis(TrajectoryClassifier):
                 # Assuming there is an extra dimension in the reference
                 # coordinates
                 ref_coords = ref_coords.reshape(traj_coords.shape[1:])
-
-                ref_rmsds = [
-                    rms.rmsd(frame, ref_coords, superposition=True)
-                    for frame in traj_coords
-                ]
+                
+                if frames is None:
+                    ref_rmsds = [
+                        rms.rmsd(frame, ref_coords, superposition=True)
+                        for frame in traj_coords
+                    ]
+                else:
+                    ref_rmsds = [rms.rmsd(traj_coords[frame_idx, :, :], 
+                                         ref_coords, 
+                                         superposition=True)
+                                 for frame_idx in frames]
 
                 all_rmsds.append(ref_rmsds)
 
