@@ -1,8 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Any
 from numba import jit
-from mc_trex.fit_func import sigmoid_melting_curve
+from mc_trex.post_processing.fit_func import sigmoid_melting_curve
 
 
 def statistical_inefficiency(
@@ -362,7 +362,7 @@ def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> 
 
     """
 
-    n_confs = fracs.shape[-1]
+    n_confs = fracs.shape[0]
 
     error = 0.0
 
