@@ -265,21 +265,20 @@ def tm_estimation(
     if min_diff_idx == 0:
         print(
             "Minimum distance between melting curves detected at least\
-        temperature. Melting curve fit likely to be inaccurate."
+                    temperature. Melting curve fit likely to be inaccurate."
         )
 
     elif min_diff_idx == len(temperatures) - 1:
         print(
             "Minimum distance between melting curves detected at highest\
-        temperature. Melting curve fit likely to be inaccurate."
+                    temperature. Melting curve fit likely to be inaccurate."
         )
 
     elif np.sign(fit_T1[0] - fit_T2[0]) * np.sign(fit_T1[-1] - fit_T2[-1]) > 0:
         print(
-            "Lowest temperature where melting curves meet is {}. However, \
-        melting curves do not follow consistent trend.".format(
-                temperatures[min_diff_idx]
-            )
+            "Lowest temperature where melting curves meet is {}. However,\
+                    melting curves do not follow consistent trend.".format(
+                        temperatures[min_diff_idx])
         )
 
     else:
@@ -332,7 +331,6 @@ def autocorrelation(
 
     else:
         return ac
-
 
 def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> float:
     """
