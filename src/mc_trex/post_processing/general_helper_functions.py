@@ -278,7 +278,8 @@ def tm_estimation(
         print(
             "Lowest temperature where melting curves meet is {}. However,\
                     melting curves do not follow consistent trend.".format(
-                        temperatures[min_diff_idx])
+                temperatures[min_diff_idx]
+            )
         )
 
     else:
@@ -332,7 +333,13 @@ def autocorrelation(
     else:
         return ac
 
-def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> float:
+
+def residuals(
+    params: List[Any],
+    T: List[float],
+    fracs: NDArray[np.float64],
+    weights: NDArray[np.float64] | None = None,
+) -> float:
     """
     Calculates the residuals for a constrained optimization of melting curve
     fit parameters. It is simply the mean squared error of the melting curves,
@@ -351,6 +358,10 @@ def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> 
     fracs : NDArray[np.float64]
         The fraction of different configurations at each temperature in T.
 
+    weights : NDArray[np.float64]
+        The weights to be assigned to the residuals before adding them to
+        the data. If None, then equal weights are assigned to add points.
+
     Returns
     -------
 
@@ -361,6 +372,8 @@ def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> 
     """
 
     n_confs = fracs.shape[0]
+    if weights is None:
+        weights = [[1 for _ in range(len(fracs[i]))] for i in range(n_confs)]
 
     error = 0.0
 
@@ -369,7 +382,7 @@ def residuals(params: List[Any], T: List[float], fracs: NDArray[np.float64]) -> 
         dT = params[3 * i + 1]
         p = params[3 * i + 2]
         fi = sigmoid_melting_curve(T, Tm, dT, p)
-        error += np.sum((fi - fracs[i]) ** 2)
+        error += np.sum(np.multiply(weights, (fi - fracs[i]) ** 2))
 
     return error
 
