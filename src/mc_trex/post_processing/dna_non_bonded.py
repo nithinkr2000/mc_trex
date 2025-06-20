@@ -129,7 +129,7 @@ def check_angle(
 
     """
     # Check if passed method is soft or hard
-    if not isinstance(method, Method):
+    if method not in [m.value for m in Method]:
         raise ValueError("Not a valid method.")
 
     ang = np.rad2deg(
