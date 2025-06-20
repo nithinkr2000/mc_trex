@@ -158,7 +158,8 @@ def get_frac_natcons(
     # are set to None
     min_sim_len = np.min([sim.trajectory.n_frames for sim in sims])
     
-    if (frames and 
+
+    if (frames is not None and len(frames) and 
         all([int(frameidx)==frameidx for frameidx in frames]) and 
         np.all(np.logical_and(np.greater(frames, 0), np.less(frames, min_sim_len)))):
         start = None                
