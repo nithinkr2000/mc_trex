@@ -13,13 +13,11 @@ import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from MDAnalysis import Universe
-    from MDAnalysis.analysis import align
+    from MDAnalysis.analysis import align, rms
 
 from pathlib import Path
 from mc_trex.post_processing import native_contacts
 
-from numba import int32, float64
-from numba.experimental import jitclass
 
 class Method(Enum):
     """Enumeration of available methods in trajectory classification."""
@@ -53,7 +51,7 @@ class TrajectoryLoader:
 
     refs : List[MDAnalysis.Universe] | None
         List of reference structures loaded from `ref_loc`.
-    
+
     Methods
     -------
 
@@ -79,7 +77,7 @@ class TrajectoryLoader:
         self.top_ref = top_ref if top_ref is not None else top
         self.traj = None
         self.refs = None
-        
+
     def load_trajectory(self, **kwargs) -> Universe:
         """
         Wrapper for loading trajectory.
@@ -99,13 +97,15 @@ class TrajectoryLoader:
 
         """
 
-        if self.traj_loc is None: raise ValueError("No trajectory provided!")
-        if self.top is None: raise ValueError("No topology provided!")
+        if self.traj_loc is None:
+            raise ValueError("No trajectory provided!")
+        if self.top is None:
+            raise ValueError("No topology provided!")
 
         self.traj = Universe(self.top, self.traj_loc, **kwargs)
-        
+
         return self.traj
-        
+
     def load_reference(self, **kwargs) -> List[Universe]:
         """
         Wrapper for loading reference structures.
@@ -124,12 +124,15 @@ class TrajectoryLoader:
             List of Universe class instances containing reference trajectories.
         """
 
-        if self.ref_loc is None: raise("No reference structures provided!")
-        if self.top_ref is None: raise("No topology provided!")
-        
+        if self.ref_loc is None:
+            raise ValueError("No reference structures provided!")
+        if self.top_ref is None:
+            raise ValueError("No topology provided!")
+
         self.refs = [Universe(self.top_ref, ref, **kwargs) for ref in self.ref_loc]
-        
+
         return self.refss
+
 
 class TrajectoryClassifier(TrajectoryLoader, ABC):
     """
@@ -157,7 +160,7 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
         Determine cut-off using Gaussian mixture models and sort through frames
         using these cut-offs.
     """
-    
+
     @property
     @abstractmethod
     def get_which(self):
@@ -309,13 +312,7 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
             pdf = np.exp(logpdf)
 
             # Find gradient of the PDF
-            grad_pdf = np.gradient(pdf, newbins)
-
-            # Find minima by checking where the gradient goes from 0/negative to positive
-            min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
-
-            # Get these points on the measure axis
-            minima_measures = newbins[min_bin_in]
+            # grad_pdf = np.gradient(pdf, newbins)
 
             ## Determine peaks to select minima immediately after or immediately before them
 
@@ -326,24 +323,35 @@ class TrajectoryClassifier(TrajectoryLoader, ABC):
                 np.sum(pdf_per_component, axis=1) * pdf * np.sum(bin_pops) * bin_width
             )
 
+            # Find minima by checking where the gradient goes from 0/negative to positive
+            # min_bin_in = np.where(np.diff(np.sign(grad_pdf)) > 0)[0] + 1
+            min_bin_in = find_peaks(-profile)[0]
+
+            # Get these points on the measure axis
+            minima_measures = newbins[min_bin_in]
+
             # Find the peaks
             peak_idcs = find_peaks(profile, height=height)[0]
 
             # Select the minima after each identified peak
             cuts = (
-                np.unique([
-                    minima_measures[minima_measures < newbins[idx]][-1]
-                    if np.any(np.less(minima_measures, newbins[idx]))
-                    else -1
-                    for idx in peak_idcs
-                ])
+                np.unique(
+                    [
+                        minima_measures[minima_measures < newbins[idx]][-1]
+                        if np.any(np.less(minima_measures, newbins[idx]))
+                        else -1
+                        for idx in peak_idcs
+                    ]
+                )
                 if self.get_which
-                else np.unique([
-                    minima_measures[minima_measures > newbins[idx]][0]
-                    if np.any(np.greater(minima_measures, newbins[idx]))
-                    else newbins[-1]+1
-                    for idx in peak_idcs
-                ])
+                else np.unique(
+                    [
+                        minima_measures[minima_measures > newbins[idx]][0]
+                        if np.any(np.greater(minima_measures, newbins[idx]))
+                        else newbins[-1] + 1
+                        for idx in peak_idcs
+                    ]
+                )
             )
 
             all_cuts.append(cuts)
@@ -448,6 +456,8 @@ class RMSDAnalysis(TrajectoryClassifier):
         stop: int = -1,
         step: int = 1,
         verbose: bool = False,
+        select: str = "all",
+        method: str = "align",
         **kwargs,
     ) -> List[NDArray[np.float64]]:
         """
@@ -487,6 +497,16 @@ class RMSDAnalysis(TrajectoryClassifier):
         verbose : bool
             Turn on verbosity.
 
+        select : str
+            Selection string for the atoms with respect to which the RMSD
+            is to be calculated.
+
+        method : str
+            Can be `align` or `no_align`. For the first option, an aligned
+            trajectory is generated in addition to the RMSD. For the second
+            option, the RMSD is determined without generating the aligned
+            trajectory.
+
         **kwargs
             Extra key word arguments for MDAnalysis.align.AlignTraj. Check
             module docstring.
@@ -496,41 +516,79 @@ class RMSDAnalysis(TrajectoryClassifier):
         -------
 
         List[NDArray[np.float64]]
-        List[float]
             List of RMSD values of the trajectory with respect to each
             reference.
         """
 
-        if self.traj is None: raise("No trajectory provided!")
-        if self.refs is None: raise("No reference structures provided")
-        
+        if self.traj is None:
+            raise ValueError("No trajectory provided!")
+        if self.refs is None:
+            raise ValueError("No reference structures provided")
+
         all_rmsds = []
 
-        if (filenames is None) or len(filenames) != len(self.refs):
-            in_traj_path = Path(self.traj.trajectory.filename)
-            filenames = [
-                in_traj_path.parent.joinpath(
-                    prefix + str(idx) + "_" + in_traj_path.name
+        if method.casefold() == "align":
+            if (filenames is None) or len(filenames) != len(self.refs):
+                in_traj_path = Path(self.traj.trajectory.filename)
+                filenames = [
+                    in_traj_path.parent.joinpath(
+                        prefix + str(idx) + "_" + in_traj_path.name
+                    )
+                    for idx in range(len(self.refs))
+                ]
+
+            if (
+                frames
+                and all([int(frameidx) == frameidx for frameidx in frames])
+                and np.all(
+                    np.logical_and(
+                        np.greater_equal(frames, 0),
+                        np.less(frames, self.traj.trajectory.n_frames),
+                    )
                 )
-                for idx in range(len(self.refs))
-            ]
+            ):
+                start = None
+                stop = None
+                step = None
 
-        if (frames and
-            all([int(frameidx)==frameidx for frameidx in frames]) and
-            np.all(np.logical_and(np.greater_equal(frames, 0), 
-                np.less(frames, self.traj.trajectory.n_frames)))):
-            start = None
-            stop = None
-            step = None
+            else:
+                frames = None
 
-        else:
-            frames = None
+            for (idx, ref_traj), filename in zip(enumerate(self.refs), filenames):
+                aligner = align.AlignTraj(
+                    mobile=self.traj,
+                    reference=ref_traj,
+                    filename=filename,
+                    select=select,
+                    **kwargs,
+                ).run(start=start, stop=stop, step=step, frames=frames, verbose=verbose)
+                all_rmsds.append(aligner.results.rmsd)
 
-        for (idx, ref_traj), filename in zip(enumerate(self.refs), filenames):
-            aligner = align.AlignTraj(
-                mobile=self.traj, reference=self.ref_traj, filename=filename, **kwargs
-            ).run(start=start, stop=stop, step=step, frames=frames, verbose=verbose)
-            all_rmsds.append(aligner.results.rmsd)
+        elif method.casefold() == "no_align":
+            traj_select = self.traj.select_atoms(select)
+
+            traj_coords = self.traj.trajectory.timeseries(atomgroup=traj_select)
+
+            for idx, ref_traj in enumerate(self.refs):
+                ref_select = ref_traj.select_atoms(select)
+                ref_coords = ref_traj.trajectory.timeseries(ref_select)
+
+                # Assuming there is an extra dimension in the reference
+                # coordinates
+                ref_coords = ref_coords.reshape(traj_coords.shape[1:])
+                
+                if frames is None:
+                    ref_rmsds = [
+                        rms.rmsd(frame, ref_coords, superposition=True)
+                        for frame in traj_coords
+                    ]
+                else:
+                    ref_rmsds = [rms.rmsd(traj_coords[frame_idx, :, :], 
+                                         ref_coords, 
+                                         superposition=True)
+                                 for frame_idx in frames]
+
+                all_rmsds.append(ref_rmsds)
 
         return all_rmsds
 
@@ -579,12 +637,12 @@ class NativeContactAnalysis(TrajectoryClassifier):
 
         verbose : bool
             Turn on verbosity.
-    
+
         post_process : bool
             Set to True to perform post-processing (extract timeseries)
             before returning. If False, the contacts.Contacts objects of
             MDAnalysis are returned.
-        
+
         **kwargs
             Extra key word arguments for native_contacts.get_frac_natcons.
             Check module docstring for all possible arguments.
@@ -610,10 +668,13 @@ class NativeContactAnalysis(TrajectoryClassifier):
                 verbose=verbose,
                 **kwargs,
             )
-            
 
             for natcons in temp_natcons:
-                all_natcons.append(native_contacts.post_process_natcons(natcons) if post_process else natcons)
+                all_natcons.append(
+                    native_contacts.post_process_natcons(natcons)
+                    if post_process
+                    else natcons
+                )
 
         return all_natcons
 

@@ -65,10 +65,13 @@ class TRExEval(ReadAMBER):
 
         super().__init__(logfiles=logfiles, outfiles=outfiles)
 
-        self.thermostats, self.num_reps, self.num_exs, self.df_exchng = (
-            super().generate_log_info(pass_all=True)
-        )
-        self.df_out = super().generate_out_info()
+        if logfiles is not None:
+            self.thermostats, self.num_reps, self.num_exs, self.df_exchng = (
+                super().generate_log_info(pass_all=True)
+            )
+        
+        if outfiles is not None:
+            self.df_out = super().generate_out_info()
 
     def get_residence_times(self) -> List[List[NDArray[np.int64]]]:
         """

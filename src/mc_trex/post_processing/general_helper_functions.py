@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Any
+from numba import jit
+from mc_trex.post_processing.fit_func import sigmoid_melting_curve
 
 
 def statistical_inefficiency(
@@ -56,6 +58,7 @@ def statistical_inefficiency(
     return statistical_inefficiency
 
 
+@jit(nopython=True)
 def jack_knife(
     data: NDArray[np.float64], n_blocks: int, f: Callable = np.mean
 ) -> NDArray[np.float64]:
@@ -82,22 +85,30 @@ def jack_knife(
         The error estimate from jack-knife.
 
     """
+
     len_dat = len(data)
     block_size = len_dat // n_blocks
 
-    blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
+    # Exclude any elements that cannot form a full block
+    clipped_data = data[: n_blocks * block_size]
+    rho_bar = f(clipped_data)
 
-    # Dataset without one block
-    blocks_m = np.zeros([n_blocks, (n_blocks - 1) * block_size])
-    for idx in range(n_blocks):
-        blocks_m[idx] = np.append(blocks[:idx].flatten(), blocks[idx + 1 :].flatten())
+    # To hold the sum under root in jack-knife error
+    sum_diff_sq = 0
 
-    rho_m_bar = np.apply_along_axis(func1d=f, axis=1, arr=blocks_m)
-    rho_bar = f(data[: n_blocks * block_size])
+    for i in range(n_blocks):
+        # Create the data set excluding the block
+        block_m = np.append(
+            clipped_data[: i * block_size], clipped_data[(i + 1) * block_size :]
+        )
 
-    del_rho = np.sqrt((n_blocks - 1) / n_blocks) * np.sqrt(
-        np.sum(np.power(np.subtract(rho_m_bar, rho_bar), 2))
-    )
+        # Apply function to the data set excluding the block
+        rho_m_bar = f(block_m)
+
+        sum_diff_sq += np.power(rho_m_bar - rho_bar, 2)
+
+    # Apply the full formula of jack-knife error
+    del_rho = np.sqrt((n_blocks - 1) / n_blocks) * np.sqrt(sum_diff_sq)
 
     return del_rho
 
@@ -108,7 +119,7 @@ def blocked_bootstrap(
     block_indices: List[int] | None = None,
     confidence: int = 5,
     n_bootstraps: int = 1000,
-    f: Callable = np.mean
+    f: Callable = np.mean,
 ) -> Tuple[NDArray[np.float64], List[float]]:
     """
     Perform bootstrap on blocked values.
@@ -124,9 +135,9 @@ def blocked_bootstrap(
 
     block_indices: List[int] | None
         The indices of block edges, including the beginning of the first block
-        (0) and the ending of the last block (len(data)). If this variable is 
+        (0) and the ending of the last block (len(data)). If this variable is
         passed, then block_size array is ignored.
-        
+
     confidence : int
         Confidence level to select values for.
 
@@ -151,10 +162,14 @@ def blocked_bootstrap(
         n_blocks = len_dat // block_size
         blocks = np.array(np.array_split(data[: n_blocks * block_size], n_blocks))
     else:
-        n_blocks = len(block_indices)-1 
-        blocks = np.array([data[idx1:idx2] for idx1, idx2 in zip(block_indices[:-1], block_indices[1:])], dtype=object)
-        
-    
+        n_blocks = len(block_indices) - 1
+        blocks = np.array(
+            [
+                data[idx1:idx2]
+                for idx1, idx2 in zip(block_indices[:-1], block_indices[1:])
+            ],
+            dtype=object,
+        )
 
     blocked_bootstrap = np.zeros(n_bootstraps)
 
@@ -186,7 +201,7 @@ def tm_estimation(
     fit_T1: NDArray[np.float64],
     fit_T2: NDArray[np.float64],
     ref_name: str,
-    print_temp: bool
+    print_temp: bool,
 ) -> Tuple[int, np.float64]:
     """
     Function to generate the melting temperature from the melting curve fits.
@@ -212,7 +227,7 @@ def tm_estimation(
         structure of the biomolecule.
 
     print_temp : bool
-        Set to true to print the melting temperature after estimation. 
+        Set to true to print the melting temperature after estimation.
         If the estimated temperature is on of the extreme values i.e. it does
         does not lie in the temperature range passed, then the message printed
         cannot be suppressed.
@@ -250,19 +265,19 @@ def tm_estimation(
     if min_diff_idx == 0:
         print(
             "Minimum distance between melting curves detected at least\
-        temperature. Melting curve fit likely to be inaccurate."
+                    temperature. Melting curve fit likely to be inaccurate."
         )
 
     elif min_diff_idx == len(temperatures) - 1:
         print(
             "Minimum distance between melting curves detected at highest\
-        temperature. Melting curve fit likely to be inaccurate."
+                    temperature. Melting curve fit likely to be inaccurate."
         )
 
     elif np.sign(fit_T1[0] - fit_T2[0]) * np.sign(fit_T1[-1] - fit_T2[-1]) > 0:
         print(
-            "Lowest temperature where melting curves meet is {}. However, \
-        melting curves do not follow consistent trend.".format(
+            "Lowest temperature where melting curves meet is {}. However,\
+                    melting curves do not follow consistent trend.".format(
                 temperatures[min_diff_idx]
             )
         )
@@ -275,5 +290,144 @@ def tm_estimation(
                     np.round(temperatures[min_diff_idx], decimals=2)
                 )
             )
-        
+
     return min_diff_idx, np.round(temperatures[min_diff_idx], decimals=2)
+
+
+def autocorrelation(
+    x: NDArray[np.float64], lag: int | None = None
+) -> NDArray[np.float64] | float:
+    """
+    Function to calculate the autocorrelation of a timeseries. If the lag is
+    passed, the the autocorrelation for a specific lag is returned. If not,
+    then the autocorrelation for the all possible values of lag is returned.
+
+    Parameters
+    ----------
+
+    x : NDArray[np.float64]
+        The data for which the autocorrelation is to be calculated. Expected
+        shape is a linear array containing timeseries data.
+
+    lag : int | None
+        The lag for which the autocorrelation is to be calculated. Provide to
+        return a single value.
+
+    Returns
+    -------
+    NDArray[np.float64] | float
+        Returns the autocorrelation for all lag times or for a single value of
+        the lag depending on whether the argument is provided.
+
+    """
+
+    x_ = np.subtract(x, np.mean(x))
+    variance = np.var(x)
+
+    ac = np.correlate(x_, x_, mode="full")
+    ac = ac[len(ac) // 2 :] / variance
+
+    if (lag is not None) and (lag < len(ac)):
+        return ac[lag]
+
+    else:
+        return ac
+
+
+def residuals(
+    params: List[Any],
+    T: List[float],
+    fracs: NDArray[np.float64],
+    weights: NDArray[np.float64] | None = None,
+) -> float:
+    """
+    Calculates the residuals for a constrained optimization of melting curve
+    fit parameters. It is simply the mean squared error of the melting curves,
+    but added for all melting curves as opposed to just one.
+
+    Parameters
+    ----------
+
+    params : List[Any]
+        The parameter values of the fit.
+
+    T : List[float]
+        The temperature values at which the input values of the melting curve
+        are known.
+
+    fracs : NDArray[np.float64]
+        The fraction of different configurations at each temperature in T.
+
+    weights : NDArray[np.float64]
+        The weights to be assigned to the residuals before adding them to
+        the data. If None, then equal weights are assigned to add points.
+
+    Returns
+    -------
+
+    float
+        Mean squared error between the melting curves and input values for all
+        melting curves at all temperatures.
+
+    """
+
+    n_confs = fracs.shape[0]
+    if weights is None:
+        weights = [[1 for _ in range(len(fracs[i]))] for i in range(n_confs)]
+
+    error = 0.0
+
+    for i in range(n_confs):
+        Tm = params[3 * i]
+        dT = params[3 * i + 1]
+        p = params[3 * i + 2]
+        fi = sigmoid_melting_curve(T, Tm, dT, p)
+        error += np.sum(np.multiply(weights, (fi - fracs[i]) ** 2))
+
+    return error
+
+
+def penalty(
+    params: List[Any], T: List[float], n_confs: int, pen_weight: float = 1000
+) -> float:
+    """
+    Function to calculate the penalty for the sum of melting curves
+    exceeding 1.0
+    Can be used as a NonlinearConstraint in the scipy.optimize.minimize
+    function with the trust-constr option. Necessary step in the constrained
+    minimization of the fit parameters for melting curves.
+
+    Parameters
+    ----------
+
+    params : List[Any]
+        The parameter values of the fit.
+
+    T : List[float]
+        The temperature values at which the input values of the melting curve
+        are known.
+
+    n_confs : int
+        The number of configurations in the system, "unfolded" state included.
+
+    pen_weight : float
+        The weight of the penalty being imposed for deviation from total
+        probability = 1.0
+
+    Returns
+    -------
+
+    float
+        The penalty for the sum of melting curves exceeding one.
+
+    """
+    f_sum = np.zeros_like(T)
+    for i in range(n_confs):
+        Tm = params[3 * i]
+        dT = params[3 * i + 1]
+        p = params[3 * i + 2]
+
+        f_sum += sigmoid_melting_curve(T, Tm, dT, p)
+
+    pen = pen_weight * (f_sum - 1.0)
+    return pen

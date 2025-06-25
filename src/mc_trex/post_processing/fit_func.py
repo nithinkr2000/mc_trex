@@ -5,15 +5,18 @@ from numpy.typing import NDArray
 
 
 def sigmoid_melting_curve(
-    T: List[float] | NDArray[np.float64] = [0, 1], Tm: float = 0, dT: float = 0.5
+    T: List[float] | NDArray[np.float64] = [0, 1], 
+    Tm: float = 0, 
+    dT: float = 0.5,
+    p: float = 1.0
 ) -> NDArray[np.float64]:
     """
-    Sigmoid function for fitting melting curves. Limits at 0 and 1.
+    Sigmoid function for fitting melting curves. Limits at 0 and p.
 
-    f(x) = 1 / (1 + exp((T - Tm) / dT))
+    f(x) = p / (1 + exp((T - Tm) / dT))
     """
 
-    return 1 / (1 + np.exp(np.subtract(T, Tm) / dT))
+    return p / (1 + np.exp(np.subtract(T, Tm) / dT))
 
 
 def gaussian(
