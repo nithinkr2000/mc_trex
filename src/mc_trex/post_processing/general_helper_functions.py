@@ -3,7 +3,8 @@ from numpy.typing import NDArray
 from typing import List, Tuple, Callable, Any
 from numba import jit
 from mc_trex.post_processing.fit_func import sigmoid_melting_curve
-
+from math import comb
+from itertools import combinations
 
 def statistical_inefficiency(
     data: NDArray[np.float64], block_sizes: None | NDArray[np.int64]
@@ -533,7 +534,7 @@ def leave_kblocks(blocks: List[NDArray[Any]], k: int, n_sets: int )-> List[NDArr
 
     elif n_possible_sets <= n_sets:
 
-        for combination in itertools.combinations(blocks, n_blocks - k):
+        for combination in combinations(blocks, n_blocks - k):
 
             new_set = np.concatenate(combination, axis=-1)
             datasets.append(new_set)
