@@ -131,7 +131,7 @@ class TrajectoryLoader:
 
         self.refs = [Universe(self.top_ref, ref, **kwargs) for ref in self.ref_loc]
 
-        return self.refss
+        return self.refs
 
 
 class TrajectoryClassifier(TrajectoryLoader, ABC):
