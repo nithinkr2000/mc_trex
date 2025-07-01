@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from unittest.mock import Mock, patch
-
+from mc_trex.post_processing.traj_classification import TrajectoryLoader, RMSDAnalysis, NativeContactAnalysis
 import MDAnalysis as mda
 
 from mc_trex.post_processing.dna_non_bonded import (
@@ -217,3 +217,149 @@ class TestNativeContacts:
 
         with pytest.raises(AttributeError, match=""):
             post_process_natcons("invalid_input")
+            
+            
+class TestTrajectoryClassification:
+    """Test suite for traj_classification.py module."""
+
+    def test_trajectory_loader_init(self, test_universe):
+        """Test TrajectoryLoader initialization."""
+        loader = TrajectoryLoader(
+            traj_loc=[test_universe.trajectory.filename],
+            top = test_universe.filename,
+            ref_loc = [test_universe.trajectory.filename],
+            top_ref = test_universe.filename
+        )
+        
+        assert loader.traj_loc == [test_universe.trajectory.filename]
+        assert loader.top == test_universe.filename
+        assert loader.ref_loc == [test_universe.trajectory.filename]
+        assert loader.top_ref == test_universe.filename
+        assert loader.traj is None
+        assert loader.refs is None
+    
+    def test_trajectory_loader_no_top_ref(self, test_universe):
+        """Test TrajectoryLoader with no separate reference topology."""
+        loader = TrajectoryLoader(
+            traj_loc=[test_universe.trajectory.filename],
+            top=test_universe.filename,
+            ref_loc=test_universe.filename
+        )
+        
+        assert loader.top_ref == test_universe.filename
+    
+    
+    def test_load_trajectory_no_traj_loc(self, test_universe):
+        """Test load_trajectory with no trajectory location."""
+        loader = TrajectoryLoader(top=test_universe.filename)
+        
+        with pytest.raises(ValueError, match="No trajectory provided"):
+            loader.load_trajectory()
+    
+    def test_load_trajectory_no_top(self, test_universe):
+        """Test load_trajectory with no topology."""
+        loader = TrajectoryLoader(traj_loc=test_universe.trajectory.filename)
+        
+        with pytest.raises(ValueError, match="No topology provided"):
+            loader.load_trajectory()
+    
+
+    def test_load_reference(self, test_universe):
+        """Test load_reference method."""
+        
+        loader = TrajectoryLoader(
+            top=test_universe.filename,
+            ref_loc=[test_universe.trajectory.filename],
+            top_ref=test_universe.filename
+        )
+        
+        result = loader.load_reference()
+        
+        assert len(result) == 1
+        np.testing.assert_array_equal(result[0].residues.resnames, test_universe.residues.resnames)
+    
+    def test_rmsd_analysis_get_which(self):
+        """Test RMSDAnalysis get_which property."""
+        analysis = RMSDAnalysis()
+        assert analysis.get_which == 0
+    
+    def test_native_contact_analysis_get_which(self):
+        """Test NativeContactAnalysis get_which property."""
+        analysis = NativeContactAnalysis()
+        assert analysis.get_which == 1
+    
+    @patch('mc_trex.post_processing.traj_classification.native_contacts.get_frac_natcons')
+    @patch('mc_trex.post_processing.traj_classification.native_contacts.post_process_natcons')
+    def test_native_contact_analysis_get_similarity_metric(self, mock_post_process, mock_get_frac):
+        """Test NativeContactAnalysis get_similarity_metric."""
+        # Setup mocks
+        mock_get_frac.return_value = [[Mock(), Mock()]]
+        mock_post_process.return_value = ([0, 1, 2], [0.5, 0.7, 0.3])
+        
+        # Create analysis instance
+        analysis = NativeContactAnalysis()
+        analysis.traj = Mock()
+        analysis.refs = [Mock(), Mock()]
+        
+        result = analysis.get_similarity_metric(post_process=True)
+        
+        assert len(result) == 2  # 2 references
+        # Each result should be the post-processed output
+        assert result[0] == ([0, 1, 2], [0.5, 0.7, 0.3])
+        assert result[1] == ([0, 1, 2], [0.5, 0.7, 0.3])
+    
+    def test_bin_frames(self):
+        """Test bin_frames method."""
+        analysis = RMSDAnalysis()
+        
+        similarity_metric = [
+            np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+            np.array([0.5, 1.5, 2.5, 3.5, 4.5])
+        ]
+        
+        result = analysis.bin_frames(similarity_metric, bins=3)
+        
+        assert len(result) == 2  # 2 references
+        assert len(result[0]) == 2  # (counts, bin_edges)
+        assert len(result[1]) == 2  # (counts, bin_edges)
+    
+    def test_get_cuts(self, test_universe):
+        """Test get_cuts method."""
+        analysis = RMSDAnalysis()
+        
+        # Create binned metrics
+        binned_metrics = [
+            (np.array([10, 20, 15]), np.array([0.0, 1.0, 2.0, 3.0]))
+        ]
+        
+        result = analysis.get_cuts(binned_metrics, n_components=2)
+        
+        assert len(result) == 1  # 1 reference
+        assert isinstance(result[0], np.ndarray)
+    
+    def test_sort_frames_get_which_0(self):
+        """Test sort_frames method with get_which=0 (minimum)."""
+        analysis = RMSDAnalysis()
+        
+        similarity_metric = np.array([
+            [1.0, 3.0, 2.0, 4.0],  # ref 1
+            [2.0, 1.0, 3.0, 2.0]   # ref 2
+        ])
+        cut_offs = np.reshape([2.5, 2.5], (-1, 1))
+        
+        frames, configurations = analysis.sort_frames(similarity_metric, cut_offs)
+        
+        np.testing.assert_array_equal(frames, [0, 1, 2, 3])
+        
+        # Frame 0: min(1.0, 2.0) = 1.0 (ref 0), Frame 1: min(inf, 1.0) = 1.0 (ref 1)
+        # Frame 2: min(2.0, inf) = 2.0 (ref 0), Frame 3: min(inf, 2.0) = 2.0 (ref 1)
+        
+        expected_configs = [0, 1, 0, 1]
+        np.testing.assert_array_equal(configurations, expected_configs)
+    
+    def test_sort_frames_empty_similarity_metric(self):
+        """Test sort_frames with empty similarity metric."""
+        analysis = RMSDAnalysis()
+        
+        with pytest.raises(ValueError, match="similarity_metric cannot be empty"):
+            analysis.sort_frames([], [])
