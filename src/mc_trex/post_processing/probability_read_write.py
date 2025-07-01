@@ -160,7 +160,7 @@ def save_leave_k_data_json(data: leave_k_resampled_data, base_filename: str):
     print(f"Data saved to {json_path} and {npz_path}")
 
 # Helper to reconstruct dicts with float keys
-def _reconstruct_float_key_dict(json_prefix, numpy_prefix, json_data):
+def _reconstruct_float_key_dict(json_prefix, numpy_prefix, json_data, numpy_data):
     if json_data.get(f"has_{json_prefix}", False):
         reconstructed_dict = {}
         for key_str in json_data.get(f"{json_prefix}_keys", []):
@@ -169,7 +169,7 @@ def _reconstruct_float_key_dict(json_prefix, numpy_prefix, json_data):
                 float_key = float(key_str)
 
             elif key_str[0] == '(':
-                float_kye = tuple(map(float, key_str.strip('()').split(',')))
+                float_key = tuple(map(float, key_str.strip('()').split(',')))
 
             else:
                 raise ValueError("Key type not identified")
@@ -229,10 +229,10 @@ def load_leave_k_data_json(base_filename: str) -> leave_k_resampled_data:
     
 
     # Handle leave_k_datasets
-    kwargs["leave_k_datasets"] = _reconstruct_float_key_dict("leave_k_datasets", "leave_k_datasets", json_data)
+    kwargs["leave_k_datasets"] = _reconstruct_float_key_dict("leave_k_datasets", "leave_k_datasets", json_data, numpy_data)
 
     # Handle fit_params
-    kwargs["fit_params"] = _reconstruct_float_key_dict("fit_params", "fit_params", json_data)
+    kwargs["fit_params"] = _reconstruct_float_key_dict("fit_params", "fit_params", json_data, numpy_data)
 
     # Handle log (list of datetime objects)
     log_iso_strings = json_data.get("log", [])

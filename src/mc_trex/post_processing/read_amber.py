@@ -200,6 +200,10 @@ class ReadAMBER:
 
     def read_AMBER_out(self) -> None:
         """Read the AMBER out files given the file paths."""
+        
+        names = ['NSTEP', 'TIME(PS)', 'TEMP(K)', 'PRESS', 'Etot', 'EKtot', 
+                'EPtot', 'BOND', 'ANGLE', 'DIHED', '1-4 NB', '1-4 EEL', 
+                'VDWAALS', 'EELEC', 'EHBOND', 'RESTRAINT', 'TEMP0', 'REPNUM']
 
         try:
             all_df_out = []
@@ -226,6 +230,11 @@ class ReadAMBER:
                                 out_dict[key.strip()] = [float(val)]
                             else:
                                 out_dict[key.strip()].append(float(val))
+                
+                for key in out_dict.copy():
+                    if key not in names:
+                        out_dict.pop(key, None)
+
                 all_df_out.append(pd.DataFrame(out_dict))
 
             self.df_out = pd.concat(all_df_out, ignore_index=True)
