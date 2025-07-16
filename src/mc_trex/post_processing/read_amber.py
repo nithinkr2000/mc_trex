@@ -213,8 +213,15 @@ class ReadAMBER:
 
                 all_dat_pattern = r"(?<=RESULTS\n)(.*?)(?=A V E R A G E S|$)"
                 line_pattern = r"([A-Za-z0-9\-\s\(\)]+?)\s*=\s*([+-]?\d+\.?\d*)"
+                
+                found_patterns = re.search(all_dat_pattern, raw, re.DOTALL)
+                
+                if found_patterns != None:
+                    mdout_dat = found_patterns.group(1)
+                else:
+                    print(re.findall(r"| Working directory: (.*)\n", raw)[0])
+                    raise RuntimeError("Invalid AMBER output file.")
 
-                mdout_dat = re.search(all_dat_pattern, raw, re.DOTALL).group(1)
                 split2frames = re.split("-{2,}\n", mdout_dat)[1:-1]
 
                 out_dict: Dict = {}
