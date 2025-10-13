@@ -3,7 +3,8 @@ from numpy.typing import NDArray
 from typing import List, Tuple, Callable, Any
 from numba import jit
 from mc_trex.post_processing.fit_func import sigmoid_melting_curve
-from math import comb
+from math import comb, sqrt
+from statistics import variance, mean
 from itertools import combinations
 
 def statistical_inefficiency(
@@ -58,7 +59,6 @@ def statistical_inefficiency(
 
     return statistical_inefficiency
 
-
 @jit(nopython=True)
 def jack_knife(
     data: NDArray[np.float64], n_blocks: int, func: str = 'mean'
@@ -86,20 +86,17 @@ def jack_knife(
         The error estimate from jack-knife.
 
     """
-    
 
-    match func:
-        case 'mean':
-            f = np.mean
-        case 'std':
-            f = np.std
-    
     len_dat = len(data)
     block_size = len_dat // n_blocks
 
     # Exclude any elements that cannot form a full block
-    clipped_data = data[: n_blocks * block_size]
-    rho_bar = f(clipped_data)
+    clipped_data = np.array(data[: n_blocks * block_size])
+    match func:
+        case 'mean':
+            rho_bar = np.mean(clipped_data)
+        case 'var':
+            rho_bar = np.std(clipped_data)
 
     # To hold the sum under root in jack-knife error
     sum_diff_sq = 0
@@ -111,7 +108,11 @@ def jack_knife(
         )
 
         # Apply function to the data set excluding the block
-        rho_m_bar = f(block_m)
+        match func:
+            case 'mean':
+                rho_m_bar = np. mean(block_m)
+            case 'var':
+                rho_m_bar = np.std(block_m)
 
         sum_diff_sq += np.power(rho_m_bar - rho_bar, 2)
 
