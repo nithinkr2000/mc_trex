@@ -61,7 +61,7 @@ def statistical_inefficiency(
 
 @jit(nopython=True)
 def jack_knife(
-    data: NDArray[np.float64], n_blocks: int, f: Callable = np.mean
+    data: NDArray[np.float64], n_blocks: int, func: str = 'mean'
 ) -> NDArray[np.float64]:
     """
     Jack-knife method for error estimation.
@@ -75,7 +75,7 @@ def jack_knife(
     n_blocks : int
         Number of blocks to be used in the calculation of the error.
 
-    f : Callable
+    func : str
         Function to be applied to the dataset before application of the
         jack-knife method.
 
@@ -86,7 +86,14 @@ def jack_knife(
         The error estimate from jack-knife.
 
     """
+    
 
+    match func:
+        case 'mean':
+            f = np.mean
+        case 'std':
+            f = np.std
+    
     len_dat = len(data)
     block_size = len_dat // n_blocks
 
